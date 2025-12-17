@@ -89,9 +89,13 @@ export const syncInstagramVideos = async () => {
     const videos = await fetchInstagramVideos();
 
     for (const v of videos) {
+       const postWithUrl = {
+        ...v,
+        url: `https://obcd.ai/media/${v.mediaId}`, // <-- store this in DB
+      };
       await InstagramVideo.updateOne(
         { mediaId: v.mediaId },
-        { $set: v },
+        { $set: postWithUrl },
         { upsert: true }
       );
     }

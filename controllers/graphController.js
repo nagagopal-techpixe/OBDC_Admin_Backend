@@ -97,40 +97,36 @@ export const getSingleMatchedMedia = async (req, res) => {
 
 export const urls = async (req, res) => {
   try {
-    const matchedMedia = await getMatchedMediaCommentsData(); // all matched media from Instagram + DB
+    const matchedMedia = await getMatchedMediaCommentsData();
     let finalResponse = [];
 
     for (const media of matchedMedia) {
-      // Check if this media already exists in Comment collection
       let dbRecord = await comment.findOne({ mediaId: media.mediaId });
 
       if (!dbRecord) {
-        // Create record if not exists
-        dbRecord = new comment({ mediaId: media.mediaId, processedComments: [] });
+        dbRecord = new comment({
+          mediaId: media.mediaId,
+          processedComments: [],
+        });
       }
 
-      // Filter only new comments (not processed)
       const newComments = media.comments.filter(
         (c) => !dbRecord.processedComments.includes(c.id)
       );
 
-      if (newComments.length === 0) {
-        // Skip media if all comments already processed
-        continue;
+      if (newComments.length === 0) continue;
+
+      // ✅ One response per comment
+      for (const c of newComments) {
+        finalResponse.push({
+          mediaId: media.mediaId,
+          commentId: c.id,
+          url: `obcd.ai/media/${media.mediaId}`,
+        });
+
+        dbRecord.processedComments.push(c.id); // ONLY ONCE
       }
 
-      // Add only new comments to response
-      finalResponse.push({
-        mediaId: media.mediaId,
-        // image: media.image,
-        // video: media.video,
-        // adminComment: media.adminComment,
-        commentId: newComments[0].id,
-        url: `http://localhost:5173/media/${media.mediaId}`,
-      });
-
-      // Store processed comment IDs
-      newComments.forEach((c) => dbRecord.processedComments.push(c.id));
       await dbRecord.save();
     }
 
@@ -141,6 +137,7 @@ export const urls = async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 };
+
 
 
 

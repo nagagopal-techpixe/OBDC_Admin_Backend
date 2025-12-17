@@ -1,86 +1,196 @@
-import Subscriber from "../models/Subscriber.js";
+import fetch from "node-fetch";
 import InstagramMedia from "../models/instaimages.js";
 import InstagramVideo from "../models/instavideos.js";
-import nodemailer from "nodemailer";
-import dotenv from "dotenv";
+import Comment from "../models/commentModel.js";
 
-dotenv.config();
+// ================== CONFIG ==================
+const ACCESS_TOKEN = process.env.INSTAGRAM_TOKEN;
+const INSTAGRAM_ID = process.env.INSTAGRAM_ID;
+const GRAPH_VERSION = "v19.0";
 
-export const subscribe = async (req, res) => {
-  const { email, mediaId } = req.body;
+// ================== STEP 1: GET ALL MEDIA ==================
+async function getAllMedia() {
+  const url = `https://graph.facebook.com/${GRAPH_VERSION}/${INSTAGRAM_ID}/media?fields=id,caption&access_token=${ACCESS_TOKEN}`;
+  const res = await fetch(url);
+  const data = await res.json();
+  return data.data || [];
+}
 
-  if (!email || !mediaId) {
-    return res.status(400).json({ message: "Email and mediaId are required" });
+// ================== STEP 2: GET COMMENTS ==================
+async function getCommentsForMedia(mediaId) {
+  const url = `https://graph.facebook.com/${GRAPH_VERSION}/${mediaId}/comments?fields=id,text,username,timestamp&access_token=${ACCESS_TOKEN}`;
+  const res = await fetch(url);
+  const data = await res.json();
+  return data.data || [];
+}
+
+// ================== STEP 3: MATCH MEDIA ==================
+async function getMatchedMediaCommentsData() {
+  const photoDB = await InstagramMedia.find();
+  const videoDB = await InstagramVideo.find();
+  const allDBMedia = [...photoDB, ...videoDB];
+
+  const igMediaList = await getAllMedia();
+  let matchedMedia = [];
+
+  for (const igMedia of igMediaList) {
+    const dbMedia = allDBMedia.find(x => x.mediaId === igMedia.id);
+    if (!dbMedia) continue;
+
+    const comments = await getCommentsForMedia(igMedia.id);
+
+    const isMatched = comments.some(
+      c =>
+        c.text?.trim().toLowerCase() ===
+        dbMedia.adminComment?.trim().toLowerCase()
+    );
+
+    if (isMatched) {
+      matchedMedia.push({
+        mediaId: igMedia.id,
+        caption: igMedia.caption,
+        adminComment: dbMedia.adminComment,
+        comments,
+      });
+    }
   }
 
+  return matchedMedia;
+}
+
+// ================== STEP 4: AUTO-REPLY HELPER ==================
+async function replyToComment(commentId, message) {
+  const url = `https://graph.facebook.com/${GRAPH_VERSION}/${commentId}/replies`;
+
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      message,
+      access_token: ACCESS_TOKEN,
+    }),
+  });
+
+  const data = await res.json();
+
+  if (data.error) {
+    console.error("Reply error:", data.error);
+    return false;
+  }
+  return true;
+}
+
+// ================== STEP 5: MAIN AUTO-REPLY LOGIC ==================
+async function getNewCommentsForAutoReply() {
+  const matchedMedia = await getMatchedMediaCommentsData();
+  let finalResponse = [];
+
+  for (const media of matchedMedia) {
+    let dbRecord = await Comment.findOne({ mediaId: media.mediaId });
+
+    if (!dbRecord) {
+      dbRecord = new Comment({
+        mediaId: media.mediaId,
+        processedComments: [],
+      });
+    }
+
+    const newComments = media.comments.filter(
+      c => !dbRecord.processedComments.includes(c.id)
+    );
+
+    for (const c of newComments) {
+      finalResponse.push({
+        mediaId: media.mediaId,
+        commentId: c.id,
+      });
+
+      dbRecord.processedComments.push(c.id);
+    }
+
+    await dbRecord.save();
+  }
+
+  return finalResponse;
+}
+
+// ================== API 1: JUST GET URL DATA ==================
+export const urls = async (req, res) => {
   try {
-    // 1️⃣ Find media in both image and video collections
-    let media = await InstagramMedia.findOne({ mediaId });
-    let type = "image";
-
-    if (!media) {
-      media = await InstagramVideo.findOne({ mediaId });
-      type = "video";
-    }
-
-    if (!media) {
-      return res.status(404).json({ message: "Media not found" });
-    }
-
-    // 2️⃣ Save subscriber to DB
-    const subscriberData =
-      type === "video"
-        ? { email, media_url: media.video }
-        : { email, media_url: media.image };
-
-    const subscriber = new Subscriber(subscriberData);
-    await subscriber.save();
-
-    // 3️⃣ Configure Nodemailer
-    const transporter = nodemailer.createTransport({
-      service: "gmail",
-      auth: {
-        user: "nagagopalchimata566@gmail.com",
-        pass: process.env.pass, // Gmail App password
-      },
-    });
-
-    // 4️⃣ Prepare media HTML safely
-    const mediaHtml =
-      type === "video" && media.video
-        ? `<video src="${media.video}" width="400" controls></video>`
-        : type === "image" && media.image
-        ? `<img src="${media.image}" width="400"/>`
-        : `<p>No media available</p>`;
-
-    // 5️⃣ Prepare email content
-    const mailOptions = {
-      from: "nagagopalchimata566@gmail.com",
-      to: email,
-      subject: "Thanks for subscribing!",
-      html: `
-        <h2>Welcome!</h2>
-        <p>Thanks for subscribing. Here's the Instagram media you clicked:</p>
-        <ul>
-          <li><b>Prompt:</b> ${media.prompt || "N/A"}</li>
-          <li><b>Tool:</b> ${media.tool || "N/A"}</li>
-          <li><b>Media URL:</b> <a href="${type === "video" ? media.video : media.image}" target="_blank">${
-        type === "video" ? media.video : media.image
-      }</a></li>
-        </ul>
-        ${mediaHtml}
-        <p>You will now receive exclusive updates from us.</p>
-      `,
-    };
-
-    // 6️⃣ Send email
-    await transporter.sendMail(mailOptions);
-
-    res.json({ message: "Saved successfully and confirmation email sent!" });
-  } catch (error) {
-    console.error("Subscribe Error:", error);
-    res
-      .status(500)
-      .json({ message: "Error saving data or sending email", error: error.message });
+    const list = await getNewCommentsForAutoReply();
+    res.json(
+      list.map(item => ({
+        mediaId: item.mediaId,
+        commentId: item.commentId,
+        url: `obcd.ai/media/${item.mediaId}`,
+      }))
+    );
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 };
+
+// ================== API 2: AUTO REPLY ==================
+export const autoReply = async (req, res) => {
+  try {
+    const commentList = await getNewCommentsForAutoReply();
+    let result = [];
+
+    for (const item of commentList) {
+      // Build URL here
+      const mediaUrl = `https://obcd.ai/media/${item.mediaId}`;
+
+      const success = await replyToComment(
+        item.commentId,
+        `Thanks for your comment! 😊 Here’s your link: ${mediaUrl}`
+      );
+
+      result.push({
+        mediaId: item.mediaId,
+        commentId: item.commentId,
+        replied: success,
+      });
+
+      // ⏳ Delay to avoid Instagram rate limit
+      await new Promise(r => setTimeout(r, 1500));
+    }
+
+    res.json(result);
+  } catch (err) {
+    console.error("AUTO REPLY ERROR:", err);
+    res.status(500).json({ error: err.message });
+  }
+};
+
+
+export const found = async (req, res) => {
+  try {
+    const { mediaId } = req.params;
+
+    // Check in images collection
+    const image = await InstagramMedia.findOne({ mediaId });
+
+    // Check in videos collection
+    const video = await InstagramVideo.findOne({ mediaId });
+
+    if (!image && !video) {
+      return res.json({
+        found: false,
+        message: "Media not found in DB",
+      });
+    }
+
+    return res.json({
+      found: true,
+      mediaType: image ? "image" : "video",
+      media: image || video,
+    });
+
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+
+import { found,urls,autoReply} from "../controllers/graphController.js";
+router.post("/auto-reply", autoReply);

@@ -3,6 +3,7 @@ import InstagramMedia from "../models/instaimages.js";
 import InstagramVideo from "../models/instavideos.js";
 import nodemailer from "nodemailer";
 import dotenv from "dotenv";
+// import logo from "../logo.png"
 
 dotenv.config();
 
@@ -37,13 +38,21 @@ export const subscribe = async (req, res) => {
     await subscriber.save();
 
     // 3️⃣ Configure Nodemailer
-    const transporter = nodemailer.createTransport({
-      service: "gmail",
-      auth: {
-        user: "nagagopalchimata566@gmail.com",
-        pass: process.env.pass, // Gmail App password
-      },
-    });
+// 3️⃣ Configure Nodemailer with Loopia SMTP
+const transporter = nodemailer.createTransport({
+  host: "mailcluster.loopia.se",
+  port: 587,
+  secure: false,
+  auth: {
+    user: "info@obcd.ai",  // Loopia email
+    pass: "info@obcd.ai",   // Loopia mailbox password
+  },
+  tls: {
+    rejectUnauthorized: false
+  }
+});
+
+        
 
     // 4️⃣ Prepare media HTML safely
     const mediaHtml =
@@ -55,18 +64,59 @@ export const subscribe = async (req, res) => {
 
     // 5️⃣ Prepare email content
     const mailOptions = {
-      from: "nagagopalchimata566@gmail.com",
+      from: "info@obcd.ai",
       to: email,
       subject: "Thanks for subscribing!",
       html: `
-        <h2>Welcome!</h2>
-        <p>Thanks for subscribing. Here's the Instagram media you clicked:</p>
-        <ul>
-          <li><b>Prompt:</b> ${media.prompt || "N/A"}</li>
-          <li><b>Tool:</b> ${media.tool || "N/A"}</li>
-        
-        </ul>
-        <p>You will now receive exclusive updates from us.</p>
+        <html>
+  <body style="margin:0; padding:0; background:#f4f4f4; font-family:Arial, sans-serif;">
+    
+    <!-- Container -->
+    <div style="
+      max-width:480px; 
+      margin:30px auto; 
+      background:#ffffff; 
+      border-radius:12px; 
+      padding:30px; 
+      box-shadow:0 4px 14px rgba(0,0,0,0.1);
+    ">
+
+      <!-- Logo -->
+      <div style="text-align:center; margin-bottom:20px;">
+        <img 
+  src="https://raw.githubusercontent.com/nagagopal-techpixe/OBCD_Admin/main/src/assets/icons/logo.png" 
+  alt="Logo" 
+  style="width:120px; height:auto;" 
+/>
+
+      </div>
+
+      <!-- Title -->
+      <h2 style="text-align:center; color:#222; margin:0 0 10px 0; font-size:26px;">
+        Welcome!
+      </h2>
+
+      <!-- Message -->
+      <p style="text-align:center; color:#555; font-size:16px; line-height:24px; margin:10px 0 25px 0;">
+        Thanks for subscribing. Here's the Instagram media you clicked:
+      </p>
+
+      <!-- Details -->
+      <div style="color:#444; font-size:16px; line-height:26px;">
+        <p><b>Prompt:</b> ${media.prompt || "N/A"}</p>
+        <p><b>Tool:</b> ${media.tool || "N/A"}</p>
+      </div>
+
+      <!-- Footer -->
+      <p style="text-align:center; color:#666; font-size:15px; margin-top:25px;">
+        You will now receive exclusive updates from us.
+      </p>
+
+    </div>
+
+  </body>
+</html>
+
       `,
     };
 

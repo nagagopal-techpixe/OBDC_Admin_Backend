@@ -8,6 +8,7 @@ const InstagramVideoSchema = new mongoose.Schema(
     prompt: { type: String, default: "" },   // user can add prompt
     tool: { type: String, default: "" },     // user can add tool
     adminComment: { type: String, default: "" },
+     url: { type: String },
     timestamp: { type: Date, required: true },
   },
   { timestamps: true }

@@ -8,7 +8,7 @@ dotenv.config();
 export const frontendSync = async () => {
   try {
     const res = await fetch(
-      `https://graph.facebook.com/v19.0/17841461297442020/media?fields=id,media_type,media_url,caption,thumbnail_url,timestamp&access_token=${process.env.INSTAGRAM_TOKEN}`
+      `https://graph.facebook.com/v19.0/17841428728033255/media?fields=id,media_type,media_url,caption,thumbnail_url,timestamp&access_token=${process.env.INSTAGRAM_TOKEN}`
     );
     const data = await res.json();
 
