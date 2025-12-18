@@ -7,7 +7,7 @@ import { getMyProfile, updateProfile } from "../controllers/MyProfilecontroller.
 import getFacebookPosts from "../controllers/FacebookPosts.js";
 import { verifyWebhook, receiveWebhook } from "../controllers/webhookController.js";
 import {processCommentEvent} from "../services/instagramService.js"
-import { getMatchedMediaComments ,getSingleMatchedMedia,getMatchedMediaCommentsData,found,urls} from "../controllers/graphController.js";
+import { found,urls,autoReply} from "../controllers/graphController.js";
 import { 
   getInstagramMedia, 
   updatePrompt, 
@@ -104,8 +104,8 @@ router.get("/webhook", verifyWebhook);
 router.post("/webhook", receiveWebhook);
 
 // router.get("/check-comments", fetchCommentsAndReply); 
-router.get("/instagram/comments", getMatchedMediaComments);
-router.get("/instagram/comments/:mediaId", getSingleMatchedMedia);
+// router.get("/instagram/comments", getMatchedMediaComments);
+// router.get("/instagram/comments/:mediaId", getSingleMatchedMedia);
 
 
 //new
@@ -114,6 +114,7 @@ router.get("/instagram/comments/:mediaId", getSingleMatchedMedia);
 router.get("/instagram/urls", urls)
 
 router.get("/media/:mediaId", found);
+router.post("/auto-reply", autoReply);
 
 
 export default router;

@@ -91,7 +91,7 @@ export const syncInstagramVideos = async () => {
     for (const v of videos) {
        const postWithUrl = {
         ...v,
-        url: `https://obcd.ai/media/${v.mediaId}`, // <-- store this in DB
+        url: `https://www.obcd.ai/media/${v.mediaId}`, // <-- store this in DB
       };
       await InstagramVideo.updateOne(
         { mediaId: v.mediaId },
