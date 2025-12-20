@@ -8,106 +8,114 @@ const ACCESS_TOKEN = process.env.INSTAGRAM_TOKEN;
 const INSTAGRAM_ID = process.env.INSTAGRAM_ID;
 
 // Fetch first image from a carousel
-async function getCarouselImage(id) {
+async function getCarouselImage(parentId) {
   try {
-    const url = `https://graph.facebook.com/v19.0/${id}/children?fields=media_type,media_url&access_token=${ACCESS_TOKEN}`;
+    const url = `https://graph.facebook.com/v19.0/${parentId}/children?fields=media_type,media_url&access_token=${ACCESS_TOKEN}`;
     const res = await fetch(url);
     const json = await res.json();
 
-    // Take the FIRST IMAGE only (skip videos)
-    const firstImage = json?.data?.find(c => c.media_type === "IMAGE");
+    if (!json.data) return null;
 
+    // Only take the FIRST IMAGE in the carousel
+    const firstImage = json.data.find((c) => c.media_type === "IMAGE");
     return firstImage?.media_url || null;
-  } catch {
+  } catch (err) {
+    console.error("Carousel Image Fetch Error:", err);
     return null;
   }
 }
 
-// Fetch ALL posts
-async function fetchInstagramPosts() {
-  let url = `https://graph.facebook.com/v19.0/${INSTAGRAM_ID}/media?fields=id,media_type,media_url,caption,timestamp&limit=100&access_token=${ACCESS_TOKEN}`;
-  const posts = [];
+// Fetch all Instagram image posts
+async function fetchInstagramImages(since = null) {
+  let url = `https://graph.facebook.com/v19.0/${INSTAGRAM_ID}/media?fields=id,media_type,media_url,caption,timestamp,children{media_type,media_url}&limit=50&access_token=${ACCESS_TOKEN}`;
+
+  if (since) url += `&since=${since}`;
+
+  const images = [];
 
   while (url) {
     const res = await fetch(url);
     const json = await res.json();
+    if (!json.data || json.data.length === 0) break;
 
-    if (!json.data) break;
+    for (const item of json.data) {
+      let imageUrl = null;
 
-    const mapped = await Promise.all(
-      json.data.map(async (item) => {
+      // IMAGE post
+      if (item.media_type === "IMAGE") {
+        imageUrl = item.media_url;
+      }
 
-        let img = null;
+      // CAROUSEL → get first image
+      else if (item.media_type === "CAROUSEL_ALBUM") {
+        imageUrl = await getCarouselImage(item.id);
+      }
 
-        // --- 1. IMAGE POST ---
-        if (item.media_type === "IMAGE") {
-          img = item.media_url;
-        }
+      // Skip VIDEO
+      else continue;
 
-        // --- 2. CAROUSEL POST ---
-        else if (item.media_type === "CAROUSEL_ALBUM") {
-          img = await getCarouselImage(item.id);
-        }
+      if (!imageUrl) continue;
 
-        // --- 3. VIDEO → SKIP ---
-        else {
-          return null;
-        }
+      images.push({
+        mediaId: item.id,
+        caption: item.caption || "",
+        image: imageUrl,
+        timestamp: new Date(item.timestamp),
+      });
+    }
 
-        // No image found → skip
-        if (!img) return null;
-
-        return {
-          mediaId: item.id,
-          caption: item.caption || "",
-          image: img,
-          timestamp: item.timestamp,
-        };
-      })
-    );
-
-    // filter out skipped
-    posts.push(...mapped.filter(Boolean));
+    // If using 'since', no need for pagination
+    if (since) break;
 
     url = json.paging?.next || null;
   }
 
-  return posts;
+  return images;
 }
 
-// ⭐ FRONTEND API → FAST RESPONSE
+// ⭐ FRONTEND API → return latest 100 images
 export const getInstagramMedia = async (req, res) => {
   try {
     const latest100 = await InstagramMedia.find()
       .sort({ timestamp: -1 })
       .limit(100);
-
     res.json(latest100);
   } catch (e) {
     res.status(500).json({ error: "Server error" });
   }
 };
 
-// ⭐ CRON JOB FUNCTION (NO req,res)
+// ⭐ CRON JOB → sync only new images
 export const syncInstagramMedia = async () => {
   try {
-    const posts = await fetchInstagramPosts();
+    const latest = await InstagramMedia.findOne().sort({ timestamp: -1 });
+    // console.log("latest",latest)
+    const since = latest
+      ? Math.floor(new Date(latest.timestamp).getTime() / 1000) - 5
+      : null;
+      // console.log("since",since)
+    const images = await fetchInstagramImages(since);
 
-    for (const p of posts) {
-      const postWithUrl = {
-        ...p,
-        url: `https://www.obcd.ai/media/${p.mediaId}`, // <-- store this in DB
-      };
+    if (images.length === 0) {
+      console.log("ℹ No new Instagram images");
+      return;
+    }
+    for (const img of images) {
       await InstagramMedia.updateOne(
-        { mediaId: p.mediaId },
-        { $set: postWithUrl },
+        { mediaId: img.mediaId },
+        {
+          $set: {
+            ...img,
+            url: `https://www.obcd.ai/media/${img.mediaId}`,
+          },
+        },
         { upsert: true }
       );
     }
 
-    console.log("✔ Instagram media synced");
-  } catch (e) {
-    console.log("❌ Sync failed", e);
+    console.log(`✔ Synced ${images.length} new Instagram images`);
+  } catch (err) {
+    console.log("❌ Image sync failed", err);
   }
 };
 

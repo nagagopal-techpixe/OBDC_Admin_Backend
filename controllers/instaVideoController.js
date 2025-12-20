@@ -86,23 +86,65 @@ export const getInstagramVideos = async (req, res) => {
 // ⭐ CRON JOB FUNCTION → Sync videos
 export const syncInstagramVideos = async () => {
   try {
-    const videos = await fetchInstagramVideos();
+    const latest = await InstagramVideo.findOne().sort({ timestamp: -1 });
 
-    for (const v of videos) {
-       const postWithUrl = {
-        ...v,
-        url: `https://www.obcd.ai/media/${v.mediaId}`, // <-- store this in DB
-      };
-      await InstagramVideo.updateOne(
-        { mediaId: v.mediaId },
-        { $set: postWithUrl },
-        { upsert: true }
-      );
+    const since = latest
+      ? Math.floor(new Date(latest.timestamp).getTime() / 1000) - 5
+      : null;
+
+    let url = `https://graph.facebook.com/v19.0/${INSTAGRAM_ID}/media?fields=id,media_type,media_url,caption,timestamp,children{media_type,media_url}&limit=50&access_token=${ACCESS_TOKEN}`;
+
+    if (since) url += `&since=${since}`;
+
+    const res = await fetch(url);
+    const json = await res.json();
+
+    if (!json.data || json.data.length === 0) {
+      console.log("ℹ No new Instagram videos");
+      return;
     }
 
-    console.log("✔ Instagram videos synced");
-  } catch (e) {
-    console.log("❌ Sync failed", e);
+    for (const item of json.data) {
+      if (item.media_type === "VIDEO") {
+        await InstagramVideo.updateOne(
+          { mediaId: item.id },
+          {
+            $set: {
+              mediaId: item.id,
+              caption: item.caption || "",
+              video: item.media_url,
+              timestamp: item.timestamp,
+              url: `https://www.obcd.ai/media/${item.id}`,
+            },
+          },
+          { upsert: true }
+        );
+      }
+
+      if (item.media_type === "CAROUSEL_ALBUM") {
+        for (const c of item.children?.data || []) {
+          if (c.media_type === "VIDEO") {
+            await InstagramVideo.updateOne(
+              { mediaId: c.id },
+              {
+                $set: {
+                  mediaId: c.id,
+                  caption: item.caption || "",
+                  video: c.media_url,
+                  timestamp: item.timestamp,
+                  url: `https://www.obcd.ai/media/${c.id}`,
+                },
+              },
+              { upsert: true }
+            );
+          }
+        }
+      }
+    }
+
+    console.log("✔ Synced only NEW Instagram videos");
+  } catch (err) {
+    console.log("❌ Sync failed", err);
   }
 };
 
