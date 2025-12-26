@@ -148,6 +148,45 @@ export const syncInstagramVideos = async () => {
   }
 };
 
+async function refreshMediaUrl(mediaId) {
+  try {
+    const url = `https://graph.facebook.com/v19.0/${mediaId}?fields=media_url&access_token=${ACCESS_TOKEN}`;
+    const res = await fetch(url);
+    const json = await res.json();
+
+    if (!json.media_url) return null;
+
+    return json.media_url;
+  } catch (err) {
+    console.log("Refresh media_url failed:", err);
+    return null;
+  }
+}
+export const refreshAllMediaUrls = async () => {
+  try {
+    const videos = await InstagramVideo.find({}, { mediaId: 1 });
+
+    console.log(`🔄 Refreshing media_url for ${videos.length} videos`);
+
+    for (const v of videos) {
+      const newUrl = await refreshMediaUrl(v.mediaId);
+
+      if (!newUrl) continue;
+
+      await InstagramVideo.updateOne(
+        { mediaId: v.mediaId },
+        { $set: { video: newUrl } }
+      );
+    }
+
+    console.log("✔ media_url refresh completed");
+  } catch (err) {
+    console.log(" media_url refresh failed", err);
+  }
+};
+
+
+
 // Update prompt
 export const updateVideoPrompt = async (req, res) => {
   const { mediaId } = req.params;

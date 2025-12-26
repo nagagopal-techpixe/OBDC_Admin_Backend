@@ -2,7 +2,7 @@ import cron from "node-cron";
 import fetch from "node-fetch";
 import { syncInstagramMedia } from "./controllers/instaController.js";
 import { updateInstagramStatsCron } from "./controllers/DashboardController.js";
-import { syncInstagramVideos } from "./controllers/instaVideoController.js";
+import { syncInstagramVideos ,refreshAllMediaUrls} from "./controllers/instaVideoController.js";
 import {frontendSync} from "./controllers/frontendcontroller.js"
 import { urls } from "./controllers/graphController.js"; 
 
@@ -27,6 +27,12 @@ cron.schedule("0 2,14 * * *", async () => {
   } catch (error) {
     console.error("❌ Cron Job Error:", error);
   }
+});
+
+// Runs at 1:00 AM every 3rd day
+cron.schedule("* * * * *", async () => {
+  console.log("🕒 CRON: Refreshing Instagram new media_url");
+  await refreshAllMediaUrls();
 });
 
 

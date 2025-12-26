@@ -37,7 +37,7 @@ async function getMediaIdFromComment(commentId) {
     const data = await res.json();
     return data.media?.id || null;
   } catch (err) {
-    console.error("❌ Error fetching mediaId from IG API:", err.message);
+    console.error(" Error fetching mediaId from IG API:", err.message);
     return null;
   }
 }
@@ -52,7 +52,7 @@ export const receiveWebhook = async (req, res) => {
       const value = change.value;
 
       if (!value || !value.id) {
-        console.log("❌ No comment ID found in changes");
+        console.log(" No comment ID found in changes");
         return res.sendStatus(200);
       }
 
@@ -96,12 +96,12 @@ if (media) {
   if (incomingComment === adminComment) {
     const replyMessage = `👉 Check this media: ${media.url}`;
     await sendReply(commentId, replyMessage);
-    console.log("✅ DM sent for media:", mediaId);
+    console.log(" DM sent for media:", mediaId);
   } else {
-    console.log("❌ Comment does not match adminComment, skipping DM");
+    console.log(" Comment does not match adminComment, skipping DM");
   }
 } else {
-  console.log("❌ Media not found in DB for mediaId:", mediaId);
+  console.log(" Media not found in DB for mediaId:", mediaId);
 }
 
       }
@@ -121,7 +121,7 @@ if (media) {
 
     res.sendStatus(200);
   } catch (err) {
-    console.error("❌ Webhook error:", err.message);
+    console.error(" Webhook error:", err.message);
     return res.sendStatus(200);
   }
 };
