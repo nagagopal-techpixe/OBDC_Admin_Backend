@@ -18,7 +18,7 @@ export const verifyWebhook = (req, res) => {
     return res.status(200).send(challenge);
   }
 
-  console.log("❌ Webhook verification failed");
+  console.log(" Webhook verification failed");
   return res.sendStatus(403);
 
 };
@@ -80,7 +80,7 @@ export const receiveWebhook = async (req, res) => {
       // DB-driven logic starts here
       // ---------------------------
       if (!mediaId) {
-        console.log("❌ Media ID not found, cannot match DB");
+        console.log(" Media ID not found, cannot match DB");
       } else {
         let media = await InstagramMedia.findOne({ mediaId });
 

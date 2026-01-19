@@ -9,7 +9,8 @@ const InstagramMediaSchema = new mongoose.Schema(
     tool: { type: String, default: "" },
     adminComment: { type: String, default: "" },
     url: { type: String },
-    timestamp: String,
+   timestamp: { type: Date, index: true },
+
 
   },
   { timestamps: true }

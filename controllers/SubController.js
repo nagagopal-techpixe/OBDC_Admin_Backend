@@ -3,6 +3,8 @@ import InstagramMedia from "../models/instaimages.js";
 import InstagramVideo from "../models/instavideos.js";
 import nodemailer from "nodemailer";
 import dotenv from "dotenv";
+import PostSubscriber from "../models/PostSubscriber.js";
+
 // import logo from "../logo.png"
 
 dotenv.config();
@@ -29,13 +31,23 @@ export const subscribe = async (req, res) => {
     }
 
     // 2️⃣ Save subscriber to DB
-    const subscriberData =
-      type === "video"
-        ? { email, media_url: media.video }
-        : { email, media_url: media.image };
+const mediaUrl = type === "video" ? media.video : media.image;
 
-    const subscriber = new Subscriber(subscriberData);
-    await subscriber.save();
+await PostSubscriber.findOneAndUpdate(
+  { mediaId },
+  {
+    $set: {
+      mediaUrl,
+      mediaType: type,
+    },
+ $push: {
+      emailIds: { email }, // subscribedAt auto-added
+    },
+
+  },
+  { upsert: true, new: true }
+);
+
 
     // 3️⃣ Configure Nodemailer
 // 3️⃣ Configure Nodemailer with Loopia SMTP
@@ -131,3 +143,56 @@ const transporter = nodemailer.createTransport({
       .json({ message: "Error saving data or sending email", error: error.message });
   }
 };
+
+export const getSubscribers = async (req, res) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 13;
+    const skip = (page - 1) * limit;
+
+    const subscribers = await PostSubscriber.find()
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean(); // 👈 IMPORTANT (allows mutation)
+
+    // 🔁 Normalize emailIds
+    const normalizedSubscribers = subscribers.map((sub) => {
+      const normalizedEmails = (sub.emailIds || []).map((e) => {
+        // old string email
+        if (typeof e === "string") {
+          return {
+            email: e,
+            subscribedAt: sub.createdAt, // fallback date
+          };
+        }
+
+        // already correct format
+        return e;
+      });
+
+      return {
+        ...sub,
+        emailIds: normalizedEmails,
+      };
+    });
+
+    const total = await PostSubscriber.countDocuments();
+
+    res.status(200).json({
+      success: true,
+      count: normalizedSubscribers.length,
+      total,
+      page,
+      pages: Math.ceil(total / limit),
+      data: normalizedSubscribers,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch subscribers",
+      error: error.message,
+    });
+  }
+};
+

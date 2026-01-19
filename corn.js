@@ -1,73 +1,58 @@
 import cron from "node-cron";
 import fetch from "node-fetch";
-import { syncInstagramMedia } from "./controllers/instaController.js";
+import { syncInstagramMedia,refreshAllImageUrls } from "./controllers/instaController.js";
 import { updateInstagramStatsCron } from "./controllers/DashboardController.js";
-import { syncInstagramVideos ,refreshAllMediaUrls} from "./controllers/instaVideoController.js";
+import { syncInstagramVideos,refreshAllMediaUrls } from "./controllers/instaVideoController.js";
 import {frontendSync} from "./controllers/frontendcontroller.js"
 import { urls } from "./controllers/graphController.js"; 
+import { updatePostSubscriberMediaUrls } from "./controllers/postSubscriberCron.js";
 
 
-cron.schedule("0 2,14 * * *", async () => {
-  console.log("🚀 Starting combined cron job...");
+cron.schedule("*/30 * * * *", async () => {
+  console.log(" Starting combined cron job...");
 
   try {
-    console.log("📌 Updating Instagram Media...");
+    console.log(" Updating Instagram Media...");
     await syncInstagramMedia();
 
-    console.log("📊 Updating Instagram Stats...");
+    console.log(" Updating Instagram Stats...");
     await updateInstagramStatsCron();
 
-    console.log("🎬 Updating Instagram Videos...");
+    console.log(" Updating Instagram Videos...");
     await syncInstagramVideos();
 
-    console.log("🖼️ Syncing Frontend...");
+    console.log("️ Syncing Frontend...");
     await frontendSync();
 
-    console.log("✅ All cron tasks completed successfully!");
+    console.log("All cron tasks completed successfully!");
   } catch (error) {
-    console.error("❌ Cron Job Error:", error);
+    console.error("Cron Job Error:", error);
   }
 });
 
 // Runs at 1:00 AM every 3rd day
-cron.schedule("* * * * *", async () => {
-  console.log("🕒 CRON: Refreshing Instagram new media_url");
-  await refreshAllMediaUrls();
+cron.schedule("0 1 */3 * *", async () => {
+    try{
+  console.log(" CRON: Refreshing Instagram new videos  media_url");
+   await refreshAllMediaUrls();
+     console.log("CRON: Refreshing Instagram new images media_url ");
+  await refreshAllImageUrls();
+    }
+    catch (error) {
+    console.error("Cron Job Error:", error);
+  }
 });
 
+//  Daily PostSubscriber mediaUrl sync
+// Runs every day at 3:30 AM
 
-cron.schedule("0 2,14 * * *", async () => {
-  console.log("⏳ Running TEST cron...");
+cron.schedule("30 3 * * *", async () => {
+  console.log(" CRON: Updating PostSubscriber media URLs...");
 
   try {
-    // Capture the final response from urls()
-    const finalResponse = await new Promise((resolve, reject) => {
-      urls(
-        {},
-        {
-          json: (data) => resolve(data),
-          status: () => ({ json: (data) => reject(data) }),
-        }
-      );
-    });
-
-    console.log("Cron Final Response:", finalResponse);
-
-    // 👉 Send finalResponse TO Make.com webhook using fetch
-    const webhookUrl = "https://hook.eu2.make.com/2nu4e1etu5qf4r4sd7v9zo59iswawxh1";
-
-    const response = await fetch(webhookUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(finalResponse),
-    });
-
-    if (!response.ok) {
-      throw new Error(`Webhook request failed: ${response.status}`);
-    }
-
-    console.log("🚀 Sent to Make.com successfully!",finalResponse);
+    await updatePostSubscriberMediaUrls();
+    console.log("PostSubscriber media URLs updated successfully!");
   } catch (error) {
-    console.error("❌ Cron Error:", error);
+    console.error("PostSubscriber Cron Error:", error);
   }
 });

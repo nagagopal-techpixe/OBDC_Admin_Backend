@@ -74,7 +74,7 @@ export const updateInstagramStatsCron = async () => {
 
     await InstagramStats.findOneAndUpdate({}, stats, { upsert: true });
 
-    console.log("📌 CRON: Instagram stats updated:", stats);
+    console.log(" CRON: Instagram stats updated:", stats);
     
 
   } catch (err) {

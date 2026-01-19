@@ -94,21 +94,21 @@ export const forgotPassword = async (req, res) => {
   await user.save();
 
   // 5️⃣ Create reset link
-  const resetUrl = `http://localhost:5175/reset-password/${resetToken}`;
+  const resetUrl = `https://www.obcd.ai/reset-password/${resetToken}`;
 
   // 6️⃣ Gmail Nodemailer Transporter
   const transporter = nodemailer.createTransport({
     service: "gmail",
     auth: {
-      user: "nagagopalchimata566@gmail.com",      // your Gmail
-      pass: process.env.pass  // your App Password
+      user: "info@obcd.ai",      // your Gmail
+      pass: "info@obcd.ai"  // your App Password
     },
   });
 
   // 7️⃣ Send Email
   try {
     await transporter.sendMail({
-      from: "nagagopalchimata566@gmail.com",
+      from: "info@obcd.ai",
       to: user.email,
       subject: "Password Reset Request",
       html: `

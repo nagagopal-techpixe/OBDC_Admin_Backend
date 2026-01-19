@@ -1,12 +1,12 @@
 import express from "express";
 import { signup, login,resetPassword ,forgotPassword} from "../controllers/authController.js";
-import { subscribe } from "../controllers/SubController.js";
+import { subscribe,getSubscribers } from "../controllers/SubController.js";
 import {adminOnly} from "../middleware/adminOnly.js"
 import {protect} from "../middleware/authMiddleware.js"
 import { getMyProfile, updateProfile } from "../controllers/MyProfilecontroller.js";
 import getFacebookPosts from "../controllers/FacebookPosts.js";
 import { verifyWebhook, receiveWebhook } from "../controllers/webhookController.js";
-import {processCommentEvent} from "../services/instagramService.js"
+// import {processCommentEvent} from "../services/instagramService.js"
 import { found,urls,autoReply} from "../controllers/graphController.js";
 import { 
   getInstagramMedia, 
@@ -50,6 +50,7 @@ router.post("/reset-password", resetPassword);
 
 // Subscribe
 router.post("/subscribe", subscribe);
+router.get("/subscribedata", getSubscribers);
 
 // Instagram Media
 router.get("/instagram", getInstagramMedia);      
