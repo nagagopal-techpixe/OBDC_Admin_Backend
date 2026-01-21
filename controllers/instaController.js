@@ -83,16 +83,31 @@ async function fetchInstagramImages(since = null) {
 // FRONTEND API — latest 100
 export const getInstagramMedia = async (req, res) => {
   try {
-    const latest100 = await InstagramMedia.find()
-      .sort({ timestamp: -1 })
-      .limit(100);
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20;
+    const skip = (page - 1) * limit;
 
-    res.json(latest100);
+    const media = await InstagramMedia.find()
+      .sort({ timestamp: -1 })
+      .skip(skip)
+      .limit(limit);
+
+    const total = await InstagramMedia.countDocuments();
+
+    res.json({
+      data: media,
+      page,
+      limit,
+      total,
+      totalPages: Math.ceil(total / limit),
+    });
 
   } catch (e) {
+    console.error(e);
     res.status(500).json({ error: "Server error" });
   }
 };
+
 
 
 // CRON — sync only new posts

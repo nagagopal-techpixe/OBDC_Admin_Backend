@@ -74,14 +74,30 @@ async function fetchInstagramVideos() {
 // ⭐ FRONTEND API → FAST RESPONSE
 export const getInstagramVideos = async (req, res) => {
   try {
-    const latest100 = await InstagramVideo.find()
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20;
+    const skip = (page - 1) * limit;
+
+    const videos = await InstagramVideo.find()
       .sort({ timestamp: -1 })
-      .limit(100);
-    res.json(latest100);
+      .skip(skip)
+      .limit(limit);
+
+    const total = await InstagramVideo.countDocuments();
+
+    res.json({
+      data: videos,
+      page,
+      limit,
+      total,
+      totalPages: Math.ceil(total / limit),
+    });
   } catch (e) {
+    console.error(e);
     res.status(500).json({ error: "Server error" });
   }
 };
+
 
 // ⭐ CRON JOB FUNCTION → Sync videos
 export const syncInstagramVideos = async () => {

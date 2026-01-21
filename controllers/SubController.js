@@ -4,6 +4,7 @@ import InstagramVideo from "../models/instavideos.js";
 import nodemailer from "nodemailer";
 import dotenv from "dotenv";
 import PostSubscriber from "../models/PostSubscriber.js";
+import { createKlaviyoProfile } from "../utils/klaviyo.js";
 
 // import logo from "../logo.png"
 
@@ -47,6 +48,17 @@ await PostSubscriber.findOneAndUpdate(
   },
   { upsert: true, new: true }
 );
+// 3️⃣ Send data to Klaviyo
+try {
+  await createKlaviyoProfile({
+    email,
+    mediaId,
+    mediaType: type, // image | video
+  });
+  console.log("Klaviyo profile created");
+} catch (klaviyoError) {
+  console.error("Klaviyo Error:", klaviyoError.response?.data || klaviyoError.message);
+}
 
 
     // 3️⃣ Configure Nodemailer
@@ -193,6 +205,36 @@ export const getSubscribers = async (req, res) => {
       message: "Failed to fetch subscribers",
       error: error.message,
     });
+  }
+};
+
+// Using ES6 export syntax
+export const getProfiles = async (req, res) => {
+  const url = 'https://a.klaviyo.com/api/profiles?page[size]=20&sort=-created';
+  
+  const options = {
+    method: 'GET',
+    headers: {
+      accept: 'application/vnd.api+json',
+      revision: '2026-01-15',
+      Authorization: `Klaviyo-API-Key ${process.env.KLAVIYO_PRIVATE_KEY}`,
+    },
+  };
+
+  try {
+    const response = await fetch(url, options);
+    
+    if (!response.ok) {
+      // If the API returns an error status
+      return res.status(response.status).json({ error: 'Failed to fetch profiles' });
+    }
+
+    const data = await response.json();
+    // Send the data back as JSON
+    res.status(200).json(data);
+  } catch (error) {
+    console.error('Error fetching Klaviyo profiles:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 };
 
