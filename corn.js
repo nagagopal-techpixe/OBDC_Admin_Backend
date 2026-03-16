@@ -8,7 +8,7 @@ import { urls } from "./controllers/graphController.js";
 import { updatePostSubscriberMediaUrls } from "./controllers/postSubscriberCron.js";
 
 
-cron.schedule("*/30 * * * *", async () => {
+cron.schedule("0 1 */3 * *", async () => {
   console.log(" Starting combined cron job...");
 
   try {
@@ -46,7 +46,7 @@ cron.schedule("0 1 */3 * *", async () => {
 //  Daily PostSubscriber mediaUrl sync
 // Runs every day at 3:30 AM
 
-cron.schedule("30 3 * * *", async () => {
+cron.schedule("0 1 */3 * *", async () => {
   console.log(" CRON: Updating PostSubscriber media URLs...");
 
   try {
